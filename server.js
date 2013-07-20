@@ -1,3 +1,14 @@
+#!/usr/bin/env node
+
+
+// Try to use CLIM (Console.Log IMproved) if available
+try
+{
+  require("clim")(console, true);
+}
+catch(error){}
+
+
 // SSL Certificates
 var fs = require('fs');
 
@@ -32,7 +43,7 @@ var MAX_SOCKETS = 1024;
 //Array to store connections (we want to remove them later on insertion order)
 wss.pending_sockets = [];
 wss.sockets = [];
-wss.rooms = {};
+
 
 /**
  * Find a socket on the sockets list based on its uid
@@ -42,102 +53,112 @@ wss.rooms = {};
  */
 function find(sockets, uid)
 {
-    for(var i=0, socket; socket = sockets[i]; i++)
-    {
-        if(socket.uid == uid)
-            return socket;
-    }
+  for(var i=0, socket; socket = sockets[i]; i++)
+    if(socket.uid == uid)
+      return socket;
 }
+
 
 wss.on('connection', function(socket)
 {
-    // Message received
-    socket.onmessage = function(message)
+  // Message received
+  socket.onmessage = function(event)
+  {
+    var message = JSON.parse(event.data);
+
+    var type = message.type;
+    var to   = message.to;
+    var id   = message.id;
+
+    var soc = find(wss.sockets, to);
+
+    if(type == 'register')
     {
-        message = JSON.parse(message.data);
+      var uid = to;
 
-        var dest = message[0];
-        var room = message[1];
-
-        var soc = find(wss.sockets, dest);
-
-        // UID registration
-        if(message.length == 2)
+      if(soc)
+      {
+        message =
         {
-            // Check if we are trying to use a yet registered UID
-            if(soc)
-            {
-                // It's the same socket, update the UID
-                if(socket == soc)
-                    socket.uid = dest;
-
-                // Trying to set the UID of a different socket, raise error
-                else
-                {
-//                  socket.send(JSON.stringify([uid, 'Yet registered']));
-                    console.warn(dest+' is yet registered');
-                }
-            }
-
-            // Socket want to register for the first time
-            else
-            {
-                // Close the oldest sockets if we are managing too much
-                // (we earn some memory)
-                while(wss.sockets.length >= MAX_SOCKETS)
-                    wss.sockets[0].close();
-
-                // Set the socket UID
-                socket.uid = dest;
-
-                // Start managing the new socket
-                var index = wss.pending_sockets.indexOf(socket);
-                wss.pending_sockets.splice(index, 1);
-                wss.sockets.push(socket);
-
-//                console.log("Registered "+socket.uid);
-            }
+          error: "UID already registered",
+          to:    to,
+          id:    id,
         }
 
-        // Forward message
-        else if(soc)
-        {
-            message[0] = socket.uid;
+        socket.send(JSON.stringify(message));
+        console.warn("UID already registered: "+uid);
 
-            soc.send(JSON.stringify(message));
-        }
+        return
+      }
 
-        // UID not defined, send by broadcast
-        else if(!dest)
-        {
-            message[0] = socket.uid;
+      // Close the oldest sockets if we are managing too much
+      // (we earn some memory)
+      if(MAX_SOCKETS)
+        while(wss.sockets.length >= MAX_SOCKETS)
+          wss.sockets[0].close();
 
-            for(var i=0, soc; soc=wss.sockets[i]; i++)
-                soc.send(JSON.stringify(message));
-        }
+      // Set the socket UID
+      socket.uid = uid;
 
-        // Trying to send a message to a non-connected peer, raise error
-        else
-        {
-//            socket.send(JSON.stringify([dest, 'Not connected']));
-            console.warn(socket.uid+' -> '+dest);
-        }
-    };
+      // Start managing the new socket
+      var index = wss.pending_sockets.indexOf(socket);
 
-    /**
-     * Remove the socket from the list of sockets and pending_sockets
-     */
-    socket.onclose = function()
+      wss.pending_sockets.splice(index, 1);
+      wss.sockets.push(socket);
+
+      console.info("Registered UID: "+uid);
+    }
+
+    // Forward message
+    else if(soc)
     {
-        wss.pending_sockets.splice(wss.pending_sockets.indexOf(socket), 1);
-        wss.sockets.splice(wss.sockets.indexOf(socket), 1);
+      delete message.to;
+      message.from = socket.uid;
+
+      soc.send(JSON.stringify(message));
+    }
+
+    // UID not defined, send by broadcast
+    else if(!to)
+    {
+      message.from = socket.uid;
+
+      for(var i=0, soc; soc=wss.sockets[i]; i++)
+        soc.send(JSON.stringify(message));
+    }
+
+    // Trying to send a message to a non-connected peer, raise error
+    else
+    {
+      message =
+      {
+        error: "UID not connected",
+        id:    id,
+      }
+
+      socket.send(JSON.stringify(message));
+      console.warn("UID not connected: "+to);
     };
+  };
 
-    // Close the oldest pending sockets if we are managing too much (we earn
-    // memory)
-    while(wss.pending_sockets.length >= MAX_PENDING_SOCKETS)
-        wss.pending_sockets[0].close();
+  /**
+   * Remove the socket from the list of sockets and pending_sockets
+   */
+  socket.onclose = function()
+  {
+    var index = wss.pending_sockets.indexOf(socket);
+    wss.pending_sockets.splice(index, 1);
 
-    // Set the new socket as pending
-    wss.pending_sockets.push(socket);
+    var index = wss.sockets.indexOf(socket);
+    wss.sockets.splice(index, 1);
+  };
+
+
+  // Close the oldest pending sockets if we are managing too much (we earn
+  // memory)
+  while(wss.pending_sockets.length >= MAX_PENDING_SOCKETS)
+    wss.pending_sockets[0].close();
+
+  // Set the new socket as pending
+  wss.pending_sockets.push(socket);
 });
