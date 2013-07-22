@@ -66,13 +66,13 @@ wss.on('connection', function(socket)
   {
     var message = JSON.parse(event.data);
 
-    var type = message.type;
-    var to   = message.to;
-    var id   = message.id;
+    var method = message.method;
+    var to     = message.to;
+    var id     = message.id;
 
     var soc = find(wss.sockets, to);
 
-    if(type == 'register')
+    if(method == 'register')
     {
       var uid = to;
 
@@ -81,8 +81,8 @@ wss.on('connection', function(socket)
         message =
         {
           error: "UID already registered",
-          to:    to,
-          id:    id,
+          from:  to,
+          ack:   id,
         }
 
         socket.send(JSON.stringify(message));
@@ -133,7 +133,7 @@ wss.on('connection', function(socket)
       message =
       {
         error: "UID not connected",
-        id:    id,
+        ack:   id,
       }
 
       socket.send(JSON.stringify(message));

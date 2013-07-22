@@ -21,6 +21,34 @@ function NSSS(socket, uid, room)
     socket.send(JSON.stringify(data));
   }
 
+  function registerCB(request, cb)
+  {
+    request.id = requestID++;
+
+    handlers[request.id] = cb;
+
+    setTimeout(function()
+    {
+      var handler = handlers[request.id];
+      if(handler)
+        handler.call(self, new Error('Timed Out'));
+
+      delete handlers[request.id];
+    }, timeout);
+  }
+
+  function initRequest(request, params)
+  {
+    var cb = (params.length && typeof params[params.length - 1] == 'function')
+           ? params.pop()
+           : null;
+
+    if(params)
+      request.params = params;
+    if(cb)
+      registerCB(request, cb);
+  }
+
   socket.onopen = function()
   {
     // Message received
@@ -28,7 +56,63 @@ function NSSS(socket, uid, room)
     {
       event = JSON.parse(event.data);
 
-      self.dispatchEvent(event);
+      function result(err, res, method)
+      {
+        var params = Array.prototype.slice.call(arguments, 3);
+
+        // requests without an id are notifications, to which responses are
+        // supressed
+        if(event.id !== null)
+        {
+          var response =
+          {
+            to:  event.from,
+            ack: event.id
+          };
+
+          if(err)
+            response.error = err;
+
+          else if(res)
+            response.result = res;
+
+          // Combined request inside response
+          if(method)
+          {
+            request.method = method;
+
+            initRequest(request, params);
+          }
+
+          // Send response
+          send(response);
+        }
+
+        // Response was not required but we want to send a request,
+        // do a normal call (a new dialog)
+        else if(method)
+          self.call.apply(self, [method, event.from].concat(params));
+      }
+
+      var method = methods[event.method];
+      if(typeof method == 'function')
+      {
+        // push result function as the last argument
+        var params = event.params || [];
+        params.push(result);
+
+        // invoke the method
+        try
+        {
+          method.apply(shareit, params);
+        }
+        catch(err)
+        {
+          result(err);
+        }
+      }
+      else
+        result(new Error('Method Not Found'));
     };
 
     // Send our UID
@@ -51,20 +135,17 @@ function NSSS(socket, uid, room)
    * @param {String|undefined} uid Identifier of the remote peer. If null,
    * message is send by broadcast to all connected peers
    */
-  this.call = function(type, to)
+  this.call = function(method, to)
   {
-    var message =
+    var request =
     {
-      type: type,
-      to:   to,
-      id:   requestID++
+      method: method,
+      to:     to
     };
 
-    var args = Array.prototype.slice.call(arguments, 2);
-    if(args)
-      message.args = args
+    initRequest(request, Array.prototype.slice.call(arguments, 2));
 
-    send(message);
+    send(request);
   };
 
 
