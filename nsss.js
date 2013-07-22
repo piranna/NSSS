@@ -3,8 +3,16 @@
  * @constructor
  * @param {Object} configuration Configuration of the connection
  */
-function NSSS(socket, uid, room)
+function NSSS(socket, uid, room, methods)
 {
+  if(typeof room == 'object')
+  {
+    methods = room;
+    room = undefined;
+  }
+
+  EventTarget.call(this);
+
   var self = this;
 
   var requestID = 0;
@@ -56,13 +64,15 @@ function NSSS(socket, uid, room)
     {
       event = JSON.parse(event.data);
 
+      console.debug(event);
+
       function result(err, res, method)
       {
         var params = Array.prototype.slice.call(arguments, 3);
 
         // requests without an id are notifications, to which responses are
         // supressed
-        if(event.id !== null)
+        if(event.id)
         {
           var response =
           {
@@ -104,7 +114,7 @@ function NSSS(socket, uid, room)
         // invoke the method
         try
         {
-          method.apply(shareit, params);
+          method.apply(methods, params);
         }
         catch(err)
         {
@@ -116,7 +126,8 @@ function NSSS(socket, uid, room)
     };
 
     // Send our UID
-    send({dest: uid});
+    send({method: 'register',
+    	  to:     uid});
 
     // Set signaling as open
     var event = new Event('open');
