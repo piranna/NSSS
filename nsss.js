@@ -15,7 +15,9 @@ function NSSS(socket, uid, room, methods)
 
   var self = this;
 
-  var requestID = 0;
+  var timeout = 5000;
+  var handlers = {};
+  var requestID = 1;
 
   /**
    * UUID generator
@@ -89,9 +91,9 @@ function NSSS(socket, uid, room, methods)
           // Combined request inside response
           if(method)
           {
-            request.method = method;
+            response.method = method;
 
-            initRequest(request, params);
+            initRequest(response, params);
           }
 
           // Send response
