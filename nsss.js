@@ -122,8 +122,7 @@ function NSSS(socket, uid, room, methods)
       if(typeof method == 'function')
       {
         // push result function as the last argument
-        var params = event.params || [];
-        params.push(result);
+        var params = [event.from].concat(event.params || [], [result]);
 
         // invoke the method
         try

@@ -3,6 +3,10 @@ var DOMAIN = "193.147.51.35";
 
 window.addEventListener('load', function(event)
 {
+  var pc = null;
+  var nsss = null;
+
+
   function addToChat(msg, color)
   {
     // Sanitize the input
@@ -18,21 +22,57 @@ window.addEventListener('load', function(event)
         messages.scrollTop = 10000;
   }
 
-
   function onerror(error)
   {
     console.error(error);
   }
 
-  var pc = null;
+  function createPeerConnection(peerUID)
+  {
+    var pc = new webkitRTCPeerConnection(
+    {
+      iceServers: [{url: 'stun:'+'stun.l.google.com:19302'}]
+    });
+//    var pc = new webkitRTCPeerConnection(
+//    {
+//      iceServers: [{url: 'stun:'+'stun.l.google.com:19302'}]
+//    },
+//    {'audio': true, 'video': true});
 
+    pc.onicecandidate = function(event)
+    {
+      if(event.candidate)
+        nsss.call('candidate', peerUID, event.candidate, function(error)
+        {
+          if(error)
+            console.error(error);
+
+          else
+            console.log("Sended candidate: " + event.candidate);
+        });
+    };
+
+    return pc;
+  }
+
+  function enableVideo(pc)
+  {
+    var selfView   = document.getElementById('selfView');
+    var remoteView = document.getElementById('remoteView');
+
+    // Attach local stream to selfView
+    var localStreams = pc.getLocalStreams();
+    if(localStreams.length)
+      selfView.src = URL.createObjectURL(localStreams[0]);
+
+    // Attach remote stream to remoteView
+    var remoteStreams = pc.getRemoteStreams();
+    if(remoteStreams.length)
+      remoteView.src = URL.createObjectURL(remoteStreams[0]);
+  }
 
   function initUI(nsss)
   {
-//    var selfView   = document.getElementById('selfView');
-//    var remoteView = document.getElementById('remoteView');
-
-
     // Chat input
     var chatinput = document.getElementById('chatinput');
 
@@ -58,18 +98,16 @@ window.addEventListener('load', function(event)
     {
       var peerUID = document.getElementById('peerUID').value;
 
-      pc = new webkitRTCPeerConnection(
-      {
-        iceServers: [{url: 'stun:'+'stun.l.google.com:19302'}]
-      });
+      pc = createPeerConnection(peerUID);
       pc.createOffer(function(offer)
       {
-        nsss.call('offer', peerUID, offer.sdp, function(error, answer)
+        nsss.call('offer', peerUID, offer.sdp, function(error)
         {
           if(error)
             console.error(error);
+
           else
-            console.log(answer);
+            enableVideo(pc);
         });
 
         // Set the peer local description
@@ -81,50 +119,7 @@ window.addEventListener('load', function(event)
         onerror);
       },
       onerror);
-
-
-
-
-/*      var eventHandlers =
-      {
-        'progress': function(event)
-        {
-          console.log('call is in progress');
-        },
-        'failed': function(event)
-        {
-          console.log('call failed with cause: '+ event.data.cause);
-        },
-        'ended': function(event)
-        {
-          console.log('call ended with cause: '+ event.data.cause);
-        },
-        'started': function(event)
-        {
-          var rtcSession = event.sender;
-
-          console.log('call started');
-
-          // Attach local stream to selfView
-          var localStreams = rtcSession.getLocalStreams();
-          if(localStreams.length)
-            selfView.src = URL.createObjectURL(localStreams[0]);
-
-          // Attach remote stream to remoteView
-          var remoteStreams = rtcSession.getRemoteStreams();
-          if(remoteStreams.length)
-            remoteView.src = URL.createObjectURL(remoteStreams[0]);
-        }
-      };
-
-      var options =
-      {
-        eventHandlers: eventHandlers,
-        mediaConstraints: {'audio': true, 'video': false}
-      };
-
-      ws.call('sip:'+peer+'@'+DOMAIN, options);
-*/    });
+    });
   };
 
 
@@ -147,19 +142,22 @@ window.addEventListener('load', function(event)
     console.warn('close: '+event.code);
   });
 
-  var nsss = new NSSS(ws, uid,
+  nsss = new NSSS(ws, uid,
   {
-    message: function(text)
+    message: function(from, text)
     {
-      addToChat(text, "#0000FF");
+      addToChat("["+from+"] "+text, "#0000FF");
     },
 
-    offer: function(offer, callback)
+    offer: function(from, offer, callback)
     {
-      var pc = new webkitRTCPeerConnection(
+      function onerror(error)
       {
-        iceServers: [{url: 'stun:'+'stun.l.google.com:19302'}]
-      });
+        console.error(error);
+        callback(error);
+      }
+
+      pc = createPeerConnection(from);
 
       pc.setRemoteDescription(new RTCSessionDescription(
       {
@@ -179,29 +177,22 @@ window.addEventListener('load', function(event)
           }),
           function()
           {
-            callback(null, null, 'answer', answer.sdp, function(error, answer)
+            callback(null, null, 'answer', answer.sdp, function(error)
             {
               if(error)
                 console.error(error);
+
               else
-                console.log(answer);
+                enableVideo(pc);
             });
           },
-          function(error)
-          {
-            console.error(error);
-            callback(error);
-          });
+          onerror);
         },
-        function(error)
-        {
-          console.error(error);
-          callback(error);
-        });
+        onerror);
       });
     },
 
-    answer: function(answer, callback)
+    answer: function(from, answer, callback)
     {
       if(pc)
         pc.setRemoteDescription(new RTCSessionDescription(
@@ -222,6 +213,12 @@ window.addEventListener('load', function(event)
 
       else
         console.error("Answer received and PeerConnection is not initialized");
+    },
+
+    candidate: function(from, candidate, callback)
+    {
+      pc.addIceCandidate(new RTCIceCandidate(candidate));
+      callback();
     }
   });
   nsss.addEventListener('open', function(event)
