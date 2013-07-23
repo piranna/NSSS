@@ -21,10 +21,10 @@ window.addEventListener('load', function(event)
 
   function onerror(error)
   {
-    console.error(error)
+    console.error(error);
   }
 
-  var pc;
+  var pc = null;
 
 
   function initUI(nsss)
@@ -34,7 +34,7 @@ window.addEventListener('load', function(event)
 
 
     // Chat input
-    var chatinput = document.getElementById('chatinput')
+    var chatinput = document.getElementById('chatinput');
 
     chatinput.addEventListener('keydown', function(event)
     {
@@ -48,11 +48,11 @@ window.addEventListener('load', function(event)
 
         chatinput.value = "";
       }
-    }, false)
+    }, false);
 
 
     // Call button
-    var callbutton = document.getElementById('callbutton')
+    var callbutton = document.getElementById('callbutton');
 
     callbutton.addEventListener('click', function(event)
     {
@@ -64,14 +64,20 @@ window.addEventListener('load', function(event)
       });
       pc.createOffer(function(offer)
       {
-        console.log(offer)
-
         nsss.call('offer', peerUID, offer.sdp, function(error, answer)
         {
-          console.log(answer)
+          console.log(answer);
         });
+
+        // Set the peer local description
+        pc.setLocalDescription(offer,
+        function()
+        {
+          console.log(offer);
+        },
+        onerror);
       },
-      onerror)
+      onerror);
 
 
 
@@ -130,12 +136,12 @@ window.addEventListener('load', function(event)
 
   var uid = UUIDv4();
 
-  document.getElementById('uid').innerHTML = uid
+  document.getElementById('uid').innerHTML = uid;
 
-  var ws = new WebSocket('ws://'+DOMAIN+':8080')
+  var ws = new WebSocket('ws://'+DOMAIN+':8080');
   ws.addEventListener('close', function(event)
   {
-    console.warn('close: '+event.code)
+    console.warn('close: '+event.code);
   });
 
   var nsss = new NSSS(ws, uid,
@@ -161,7 +167,7 @@ window.addEventListener('load', function(event)
       {
         pc.createAnswer(function(answer)
         {
-          console.log(answer)
+          console.log(answer);
 
           pc.setLocalDescription(new RTCSessionDescription(
           {
@@ -172,42 +178,48 @@ window.addEventListener('load', function(event)
           {
             callback(null, null, 'answer', answer.sdp, function(error, answer)
             {
-              console.log(answer)
+              console.log(answer);
             });
           },
           function(error)
           {
-            callback(error)
+            console.error(error);
+            callback(error);
           });
         },
         function(error)
         {
-          callback(error)
-        })
-      })
+          console.error(error);
+          callback(error);
+        });
+      });
     },
 
     answer: function(answer, callback)
     {
-      pc.setRemoteDescription(new RTCSessionDescription(
-      {
-        sdp:  answer,
-        type: 'answer'
-      }),
-      function()
-      {
-        console.info("Received answer")
-        callback()
-      },
-      function(error)
-      {
-        callback(error)
-      });
+      if(pc)
+        pc.setRemoteDescription(new RTCSessionDescription(
+        {
+          sdp:  answer,
+          type: 'answer'
+        }),
+        function()
+        {
+          console.info("Received answer");
+          callback();
+        },
+        function(error)
+        {
+          console.error(error);
+          callback(error);
+        });
+
+      else
+        console.error("Answer received and PeerConnection is not initialized");
     }
-  })
+  });
   nsss.addEventListener('open', function(event)
   {
     initUI(nsss);
   });
-
-})
+});
