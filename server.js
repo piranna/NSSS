@@ -4,7 +4,28 @@
 // Try to use CLIM (Console.Log IMproved) if available
 try
 {
-  require("clim")(console, true);
+  var clim = require("clim");
+
+  clim.logWrite = function(level, prefixes, msg)
+  {
+    // Default implementation writing to stderr
+    var line = clim.getTime() + " " + level;
+    if(prefixes.length > 0)
+      line += " " + prefixes.join(" ");
+
+    switch(level)
+    {
+      case 'LOG':   line = '\u001b[34;1m' + line + '\u001b[0m'; break;
+      case 'INFO':  line = '\u001b[1m'    + line + '\u001b[0m'; break;
+      case 'WARN':  line = '\u001b[33;1m' + line + '\u001b[0m'; break;
+      case 'ERROR': line = '\u001b[31;1m' + line + '\u001b[0m'; break;
+    }
+
+    line += " " + msg;
+    process.stderr.write(line + "\n");
+  };
+
+  clim(console, true);
 }
 catch(error)
 {
