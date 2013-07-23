@@ -6,7 +6,10 @@ try
 {
   require("clim")(console, true);
 }
-catch(error){}
+catch(error)
+{
+  console.warn("'clim' package is not available, using standard console.");
+}
 
 
 // SSL Certificates
