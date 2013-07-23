@@ -41,7 +41,7 @@ function NSSS(socket, uid, room, methods)
     {
       var handler = handlers[id];
       if(handler)
-        handler.call(self, new Error('Timed Out'));
+         handler.call(self, new Error('Timed Out'));
 
       delete handlers[id];
     }, timeout);
@@ -83,7 +83,7 @@ function NSSS(socket, uid, room, methods)
           };
 
           if(err)
-            response.error = err;
+            response.error = new Error(err);
 
           else if(res)
             response.result = res;

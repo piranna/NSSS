@@ -21,8 +21,7 @@ try
       case 'ERROR': line = '\u001b[31;1m' + line + '\u001b[0m'; break;
     }
 
-    line += " " + msg;
-    process.stderr.write(line + "\n");
+    process.stderr.write(line+"\n"+msg+"\n\n");
   };
 
   clim(console, true);
@@ -89,7 +88,7 @@ wss.on('connection', function(socket)
   {
     var response =
     {
-      error: msg,
+      error: new Error(msg),
     }
 
     if(ack)
@@ -127,7 +126,7 @@ wss.on('connection', function(socket)
       wss.sockets.push(socket);
 
       if(id)
-        socket.send(JSON.stringify({ack: id}));
+        socket.send(JSON.stringify({ack: id,}));
 
       console.info("Registered UID: "+uid);
     }
