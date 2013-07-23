@@ -61,6 +61,59 @@ function find(sockets, uid)
 
 wss.on('connection', function(socket)
 {
+  function error(msg, ack)
+  {
+    var response =
+    {
+      error: msg,
+    }
+
+    if(ack)
+      response.ack = ack;
+
+    socket.send(JSON.stringify(response));
+    console.warn(msg);
+  };
+
+
+  function register(uid, id)
+  {
+    var soc = find(wss.sockets, uid);
+
+    // UID already registered
+    if(soc)
+      error("UID already registered: "+uid, id);
+
+    // UID not registered previously, register it
+    else if(uid)
+    {
+      // Close the oldest sockets if we are managing too much
+      // (we earn some memory)
+      if(MAX_SOCKETS)
+        while(wss.sockets.length >= MAX_SOCKETS)
+          wss.sockets[0].close();
+
+      // Set the socket UID
+      socket.uid = uid;
+
+      // Start managing the new socket
+      var index = wss.pending_sockets.indexOf(socket);
+
+      wss.pending_sockets.splice(index, 1);
+      wss.sockets.push(socket);
+
+      if(id)
+        socket.send(JSON.stringify({ack: id}));
+
+      console.info("Registered UID: "+uid);
+    }
+
+    // UID not specified, raise error
+    else
+      error("UID not specified", id);
+  }
+
+
   // Message received
   socket.onmessage = function(event)
   {
@@ -70,104 +123,69 @@ wss.on('connection', function(socket)
 
     var method = message.method;
     var to     = message.to;
-    var id     = message.id;
 
     delete message.to;
     message.from = socket.uid;
 
-    var soc = find(wss.sockets, to);
-
-    if(!method)
+    // Request (or combined request-response) message
+    if(method)
     {
-      message =
-      {
-        error: "Method not specified",
-        ack:   id,
-      }
+      var id = message.id;
 
-      socket.send(JSON.stringify(message));
-      console.warn("Method not specified");
-    }
+      // Registration
+      if(method == 'register')
+        register(to, id);
 
-    else if(method == 'register')
-    {
-      var uid = to;
-
-      // UID already registered
-      if(soc)
-      {
-        message =
-        {
-          error: "UID already registered",
-          from:  to,
-          ack:   id,
-        }
-
-        socket.send(JSON.stringify(message));
-        console.warn("UID already registered: "+uid);
-      }
-
-      // UID not registered previously, register it
-      else if(uid)
-      {
-        // Close the oldest sockets if we are managing too much
-        // (we earn some memory)
-        if(MAX_SOCKETS)
-          while(wss.sockets.length >= MAX_SOCKETS)
-            wss.sockets[0].close();
-
-        // Set the socket UID
-        socket.uid = uid;
-
-        // Start managing the new socket
-        var index = wss.pending_sockets.indexOf(socket);
-
-        wss.pending_sockets.splice(index, 1);
-        wss.sockets.push(socket);
-
-        if(id)
-          socket.send(JSON.stringify({ack: id}));
-
-        console.info("Registered UID: "+uid);
-      }
-
-      // UID not specified, raise error
+      // Normal message, forward it
       else
       {
-        message =
+        // UID defined, try to send message to the peer
+        if(to)
         {
-          error: "UID not specified",
-          ack:   id,
+          var soc = find(wss.sockets, to);
+
+          // UID found, forward message
+          if(soc)
+             soc.send(JSON.stringify(message));
+
+          // Trying to send a message to a non-connected peer, raise error
+          else
+            error("UID not found: "+to, id);
         }
 
-        socket.send(JSON.stringify(message));
-        console.warn("UID not specified");
-      }
+        // UID not defined, send by broadcast
+        else
+          for(var i=0, soc; soc=wss.sockets[i]; i++)
+            if(soc != socket)
+               soc.send(JSON.stringify(message));
+      };
     }
 
-    // Forward message
-    else if(soc)
-      soc.send(JSON.stringify(message));
-
-    // UID not defined, send by broadcast
-    else if(!to)
-    {
-      for(var i=0, soc; soc=wss.sockets[i]; i++)
-        if(soc != socket)
-          soc.send(JSON.stringify(message));
-    }
-
-    // Trying to send a message to a non-connected peer, raise error
+    // Response
     else
     {
-      message =
-      {
-        error: "UID not connected",
-        ack:   id,
-      }
+      var ack = message.ack;
 
-      socket.send(JSON.stringify(message));
-      console.warn("UID not connected: "+to);
+      if(ack)
+      {
+        // UID defined, try to send message to the peer
+        if(to)
+        {
+          var soc = find(wss.sockets, to);
+
+          // UID found, forward message
+          if(soc)
+             soc.send(JSON.stringify(message));
+
+          // Trying to send a message to a non-connected peer, raise error
+          else
+            error("UID not found: "+to, ack);
+        }
+        else
+          error("UID not specified", ack);
+      }
+      else
+        error("Message ID not specified");
     };
   };
 
