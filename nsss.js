@@ -33,17 +33,17 @@ function NSSS(socket, uid, room, methods)
 
   function registerCB(request, cb)
   {
-    request.id = requestID++;
+    var id = request.id = requestID++;
 
-    handlers[request.id] = cb;
+    handlers[id] = cb;
 
     setTimeout(function()
     {
-      var handler = handlers[request.id];
+      var handler = handlers[id];
       if(handler)
         handler.call(self, new Error('Timed Out'));
 
-      delete handlers[request.id];
+      delete handlers[id];
     }, timeout);
   }
 
@@ -106,6 +106,18 @@ function NSSS(socket, uid, room, methods)
           self.call.apply(self, [method, event.from].concat(params));
       }
 
+      // ACK
+      var ack = event.ack;
+      if(ack)
+      {
+        var handler = handlers[ack];
+        if(handler)
+           handler.call(self, event.error, event.result);
+
+        delete handlers[ack];
+      }
+
+      // RPC
       var method = methods[event.method];
       if(typeof method == 'function')
       {

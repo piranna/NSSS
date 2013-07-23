@@ -66,7 +66,10 @@ window.addEventListener('load', function(event)
       {
         nsss.call('offer', peerUID, offer.sdp, function(error, answer)
         {
-          console.log(answer);
+          if(error)
+            console.error(error);
+          else
+            console.log(answer);
         });
 
         // Set the peer local description
@@ -178,7 +181,10 @@ window.addEventListener('load', function(event)
           {
             callback(null, null, 'answer', answer.sdp, function(error, answer)
             {
-              console.log(answer);
+              if(error)
+                console.error(error);
+              else
+                console.log(answer);
             });
           },
           function(error)
