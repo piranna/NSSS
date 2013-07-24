@@ -5,6 +5,7 @@ window.addEventListener('load', function(event)
 {
   var pc = null;
   var nsss = null;
+  var localStream = null;
 
 
   function addToChat(msg, color)
@@ -33,11 +34,8 @@ window.addEventListener('load', function(event)
     {
       iceServers: [{url: 'stun:'+'stun.l.google.com:19302'}]
     });
-//    var pc = new webkitRTCPeerConnection(
-//    {
-//      iceServers: [{url: 'stun:'+'stun.l.google.com:19302'}]
-//    },
-//    {'audio': true, 'video': true});
+
+    pc.addStream(localStream);
 
     pc.onicecandidate = function(event)
     {
@@ -76,26 +74,6 @@ window.addEventListener('load', function(event)
 
   function initUI(nsss)
   {
-    var localStream = null;
-
-    // Camera
-    navigator.webkitGetUserMedia({'audio': true, 'video': true},
-    function(stream)
-    {
-      console.log('User has granted access to local media.');
-
-      var selfView = document.getElementById('selfView');
-      selfView.src = URL.createObjectURL(stream);
-
-//      selfView.style.opacity = 1;
-
-      localStream = stream;
-    },
-    function(error)
-    {
-      console.error(error);
-    });
-
     // Chat input
     var chatinput = document.getElementById('chatinput');
 
@@ -128,8 +106,6 @@ window.addEventListener('load', function(event)
       var peerUID = document.getElementById('peerUID').value;
 
       pc = createPeerConnection(peerUID);
-      pc.addStream(localStream);
-
       pc.createOffer(function(offer)
       {
         nsss.call('offer', peerUID, offer.sdp, function(error)
@@ -189,7 +165,6 @@ window.addEventListener('load', function(event)
       }
 
       pc = createPeerConnection(from);
-
       pc.setRemoteDescription(new RTCSessionDescription(
       {
         sdp:  offer,
@@ -255,5 +230,21 @@ window.addEventListener('load', function(event)
   nsss.addEventListener('open', function(event)
   {
     initUI(nsss);
+  });
+
+  // Camera
+  navigator.webkitGetUserMedia({'audio': true, 'video': true},
+  function(stream)
+  {
+    console.log('User has granted access to local media.');
+
+    var selfView = document.getElementById('selfView');
+    selfView.src = URL.createObjectURL(stream);
+
+    localStream = stream;
+  },
+  function(error)
+  {
+    console.error(error);
   });
 });
