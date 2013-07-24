@@ -1,0 +1,10 @@
+Differences with JSON-RPC 2.0
+=============================
+
+If a call doesn't return nothing, the 'result' field is not included in the
+response instead being transmited a 'result: null' entry.
+
+Responses have an 'ack' field instead of 'id' so a request can be included on
+the response message, creating dialogs. A dialog is a succession of successful
+call messages whose request is included on the result message of the previous
+petition.

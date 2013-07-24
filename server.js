@@ -4,9 +4,32 @@
 // Try to use CLIM (Console.Log IMproved) if available
 try
 {
-  require("clim")(console, true);
+  var clim = require("clim");
+
+  clim.logWrite = function(level, prefixes, msg)
+  {
+    // Default implementation writing to stderr
+    var line = clim.getTime() + " " + level;
+    if(prefixes.length > 0)
+      line += " " + prefixes.join(" ");
+
+    switch(level)
+    {
+      case 'LOG':   line = '\u001b[34;1m' + line + '\u001b[0m'; break;
+      case 'INFO':  line = '\u001b[1m'    + line + '\u001b[0m'; break;
+      case 'WARN':  line = '\u001b[33;1m' + line + '\u001b[0m'; break;
+      case 'ERROR': line = '\u001b[31;1m' + line + '\u001b[0m'; break;
+    }
+
+    process.stderr.write(line+"\n"+msg+"\n\n");
+  };
+
+  clim(console, true);
 }
-catch(error){}
+catch(error)
+{
+  console.warn("'clim' package is not available, using standard console.");
+}
 
 
 // SSL Certificates
@@ -61,36 +84,41 @@ function find(sockets, uid)
 
 wss.on('connection', function(socket)
 {
-  // Message received
-  socket.onmessage = function(event)
+  socket.jsonrpc = "2.1";
+
+  function error(msg, requestId)
   {
-    var message = JSON.parse(event.data);
-
-    var type = message.type;
-    var to   = message.to;
-    var id   = message.id;
-
-    var soc = find(wss.sockets, to);
-
-    if(type == 'register')
+    if(requestId)
     {
-      var uid = to;
-
-      if(soc)
+      var response =
       {
-        message =
-        {
-          error: "UID already registered",
-          to:    to,
-          id:    id,
-        }
-
-        socket.send(JSON.stringify(message));
-        console.warn("UID already registered: "+uid);
-
-        return
+        jsonrpc: socket.jsonrpc,
+        error:   new Error(msg),
       }
 
+      if(socket.jsonrpc <= "2.0")
+        response.id = requestId;
+      else
+        response.ack = requestId;
+
+      socket.send(JSON.stringify(response));
+    };
+
+    console.warn(msg);
+  };
+
+
+  function register(uid, requestId)
+  {
+    var soc = find(wss.sockets, uid);
+
+    // UID already registered and it's not from us
+    if(soc && soc != socket)
+      error("UID already registered: "+uid, requestId);
+
+    // UID not registered previously, register it
+    else if(uid)
+    {
       // Close the oldest sockets if we are managing too much
       // (we earn some memory)
       if(MAX_SOCKETS)
@@ -106,38 +134,109 @@ wss.on('connection', function(socket)
       wss.pending_sockets.splice(index, 1);
       wss.sockets.push(socket);
 
+      if(requestId)
+      {
+        var response =
+        {
+          jsonrpc: socket.jsonrpc,
+        }
+
+        if(socket.jsonrpc <= "2.0")
+          response.id = requestId;
+        else
+          response.ack = requestId;
+
+        socket.send(JSON.stringify(response));
+      }
+
       console.info("Registered UID: "+uid);
     }
 
-    // Forward message
-    else if(soc)
-    {
-      delete message.to;
-      message.from = socket.uid;
-
-      soc.send(JSON.stringify(message));
-    }
-
-    // UID not defined, send by broadcast
-    else if(!to)
-    {
-      message.from = socket.uid;
-
-      for(var i=0, soc; soc=wss.sockets[i]; i++)
-        soc.send(JSON.stringify(message));
-    }
-
-    // Trying to send a message to a non-connected peer, raise error
+    // UID not specified, raise error
     else
+      error("UID not specified", requestId);
+  }
+
+
+  // Message received
+  socket.onmessage = function(event)
+  {
+    var message = JSON.parse(event.data);
+
+    console.log(message);
+
+    var method = message.method;
+    var to     = message.to;
+
+    delete message.to;
+    message.from = socket.uid;
+
+    // Request (or combined request-response) message
+    if(method)
     {
-      message =
+      var id = message.id;
+
+      // Registration
+      if(method == 'register')
       {
-        error: "UID not connected",
-        id:    id,
+        // Set connection JsonRPC version if defined
+        if(message.jsonrpc)
+          socket.jsonrpc = message.jsonrpc;
+
+        // Register the connection
+        register(to, id);
       }
 
-      socket.send(JSON.stringify(message));
-      console.warn("UID not connected: "+to);
+      // Normal message, forward it
+      else
+      {
+        // UID defined, try to send message to the peer
+        if(to)
+        {
+          var soc = find(wss.sockets, to);
+
+          // UID found, forward message
+          if(soc)
+             soc.send(JSON.stringify(message));
+
+          // Trying to send a message to a non-connected peer, raise error
+          else
+            error("UID not found: "+to, id);
+        }
+
+        // UID not defined, send by broadcast
+        else
+          for(var i=0, soc; soc=wss.sockets[i]; i++)
+            if(soc != socket)
+               soc.send(JSON.stringify(message));
+      };
+    }
+
+    // Response
+    else
+    {
+      var ack = message.ack;
+
+      if(ack)
+      {
+        // UID defined, try to send message to the peer
+        if(to)
+        {
+          var soc = find(wss.sockets, to);
+
+          // UID found, forward message
+          if(soc)
+             soc.send(JSON.stringify(message));
+
+          // Trying to send a message to a non-connected peer, raise error
+          else
+            error("UID not found: "+to, ack);
+        }
+        else
+          error("UID not specified", ack);
+      }
+      else
+        error("Message ID not specified");
     };
   };
 

@@ -1,12 +1,15 @@
 {
-  "name": "SimpleSignaling",
-  "description": "Simple signaling protocol over WebSockets",
+  "name": "NSSS",
+  "description": "Not So SimpleSignaling",
   "author": "Jesús Leganés Combarro <piranna@gmail.com>",
-  "version": "0.1.0-1",
+  "version": "0.1.0",
   "dependencies": {
     "ws": "latest"
   },
-  "subdomain": "SimpleSignaling",
+  "optionalDependencies": {
+    "clim": "latest"
+  },
+  "subdomain": "NSSS",
   "scripts": {
     "start": "server.js"
   },
