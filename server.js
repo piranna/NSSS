@@ -84,28 +84,33 @@ function find(sockets, uid)
 
 wss.on('connection', function(socket)
 {
+  socket.jsonrpc = "2.1";
+
   function error(msg, ack)
   {
-    var response =
-    {
-      error: new Error(msg),
-    }
-
     if(ack)
-      response.ack = ack;
+    {
+      var response =
+      {
+        jsonrpc: socket.jsonrpc,
+        error:   new Error(msg),
+        ack:     ack,
+      }
 
-    socket.send(JSON.stringify(response));
+      socket.send(JSON.stringify(response));
+    };
+
     console.warn(msg);
   };
 
 
-  function register(uid, id)
+  function register(uid, requestId)
   {
     var soc = find(wss.sockets, uid);
 
     // UID already registered
     if(soc)
-      error("UID already registered: "+uid, id);
+      error("UID already registered: "+uid, requestId);
 
     // UID not registered previously, register it
     else if(uid)
@@ -125,15 +130,23 @@ wss.on('connection', function(socket)
       wss.pending_sockets.splice(index, 1);
       wss.sockets.push(socket);
 
-      if(id)
-        socket.send(JSON.stringify({ack: id,}));
+      if(requestId)
+      {
+        var response =
+        {
+          jsonrpc: socket.jsonrpc,
+          ack:     requestId,
+        }
+
+        socket.send(JSON.stringify(response));
+      }
 
       console.info("Registered UID: "+uid);
     }
 
     // UID not specified, raise error
     else
-      error("UID not specified", id);
+      error("UID not specified", requestId);
   }
 
 
