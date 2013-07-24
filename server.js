@@ -177,14 +177,14 @@ wss.on('connection', function(socket)
       var id = message.id;
 
       // Registration
-      if(method == 'register')
+      if(method == 'rpc.register')
       {
         // Set connection JsonRPC version if defined
         if(message.jsonrpc)
           socket.jsonrpc = message.jsonrpc;
 
         // Register the connection
-        register(to, id);
+        register(message.params[0], id);
       }
 
       // Normal message, forward it
