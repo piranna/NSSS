@@ -63,7 +63,10 @@ window.addEventListener('load', function(event)
     // Attach local stream to selfView
     var localStreams = pc.getLocalStreams();
     if(localStreams.length)
+    {
+      console.info("Changing selfView from local webcam to transmited stream");
       selfView.src = URL.createObjectURL(localStreams[0]);
+    }
 
     // Attach remote stream to remoteView
     var remoteStreams = pc.getRemoteStreams();
@@ -73,6 +76,26 @@ window.addEventListener('load', function(event)
 
   function initUI(nsss)
   {
+    var localStream = null;
+
+    // Camera
+    navigator.webkitGetUserMedia({'audio': true, 'video': true},
+    function(stream)
+    {
+      console.log('User has granted access to local media.');
+
+      var selfView = document.getElementById('selfView');
+      selfView.src = URL.createObjectURL(stream);
+
+//      selfView.style.opacity = 1;
+
+      localStream = stream;
+    },
+    function(error)
+    {
+      console.error(error);
+    });
+
     // Chat input
     var chatinput = document.getElementById('chatinput');
 
@@ -96,9 +119,17 @@ window.addEventListener('load', function(event)
 
     callbutton.addEventListener('click', function(event)
     {
+      if(!localStream)
+      {
+        alert("Camera was not allowed");
+        return
+      }
+
       var peerUID = document.getElementById('peerUID').value;
 
       pc = createPeerConnection(peerUID);
+      pc.addStream(localStream);
+
       pc.createOffer(function(offer)
       {
         nsss.call('offer', peerUID, offer.sdp, function(error)
