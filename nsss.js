@@ -172,24 +172,6 @@ function NSSS(socket, uid, room, methods)
     send(request);
   };
 
-  /**
-   * Compose and send message
-   * @param message Data to be send
-   * @param {String|undefined} uid Identifier of the remote peer. If null,
-   * message is send by broadcast to all connected peers
-   */
-  this.callBroadcast = function(method, room)
-  {
-    var request = createRequest(method, Array.prototype.slice.call(arguments, 2)
-
-    if(room != undefined
-    && room != null
-    && room != '')
-      request.room = room
-
-    send(request);
-  };
-
 
   /**
    * Get the current UID
