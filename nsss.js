@@ -78,8 +78,9 @@ function NSSS(socket, uid, room, methods)
         {
           var response =
           {
-            to:  event.from,
-            ack: event.id
+            jsonrpc: socket.jsonrpc,
+            to:      event.from,
+            ack:     event.id
           };
 
           if(err)
@@ -139,8 +140,13 @@ function NSSS(socket, uid, room, methods)
     };
 
     // Send our UID
-    send({method: 'register',
-    	  to:     uid});
+    var request =
+    {
+      jsonrpc: socket.jsonrpc,
+      method:  'register',
+      to:      uid
+    };
+    send(request);
 
     // Set signaling as open
     var event = new Event('open');
@@ -163,8 +169,9 @@ function NSSS(socket, uid, room, methods)
   {
     var request =
     {
-      method: method,
-      to:     to
+      jsonrpc: socket.jsonrpc,
+      method:  method,
+      to:      to
     };
 
     initRequest(request, Array.prototype.slice.call(arguments, 2));
