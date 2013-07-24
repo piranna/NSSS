@@ -86,16 +86,20 @@ wss.on('connection', function(socket)
 {
   socket.jsonrpc = "2.1";
 
-  function error(msg, ack)
+  function error(msg, requestId)
   {
-    if(ack)
+    if(requestId)
     {
       var response =
       {
         jsonrpc: socket.jsonrpc,
         error:   new Error(msg),
-        ack:     ack,
       }
+
+      if(socket.jsonrpc <= "2.0")
+        response.id = requestId;
+      else
+        response.ack = requestId;
 
       socket.send(JSON.stringify(response));
     };
@@ -108,8 +112,8 @@ wss.on('connection', function(socket)
   {
     var soc = find(wss.sockets, uid);
 
-    // UID already registered
-    if(soc)
+    // UID already registered and it's not from us
+    if(soc && soc != socket)
       error("UID already registered: "+uid, requestId);
 
     // UID not registered previously, register it
@@ -135,8 +139,12 @@ wss.on('connection', function(socket)
         var response =
         {
           jsonrpc: socket.jsonrpc,
-          ack:     requestId,
         }
+
+        if(socket.jsonrpc <= "2.0")
+          response.id = requestId;
+        else
+          response.ack = requestId;
 
         socket.send(JSON.stringify(response));
       }
@@ -170,7 +178,14 @@ wss.on('connection', function(socket)
 
       // Registration
       if(method == 'register')
+      {
+        // Set connection JsonRPC version if defined
+        if(message.jsonrpc)
+          socket.jsonrpc = message.jsonrpc;
+
+        // Register the connection
         register(to, id);
+      }
 
       // Normal message, forward it
       else
