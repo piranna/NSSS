@@ -7,6 +7,14 @@ window.addEventListener('load', function(event)
   var nsss = null;
   var localStream = null;
 
+  var sdpConstraints =
+  {
+    'mandatory':
+    {
+      'OfferToReceiveAudio': true,
+      'OfferToReceiveVideo': true
+    }
+  };
 
   function addToChat(msg, color)
   {
@@ -108,24 +116,22 @@ window.addEventListener('load', function(event)
       pc = createPeerConnection(peerUID);
       pc.createOffer(function(offer)
       {
-        nsss.call('offer', peerUID, offer.sdp, function(error)
-        {
-          if(error)
-            console.error(error);
-
-          else
-            enableVideo(pc);
-        });
+        console.log(offer);
 
         // Set the peer local description
         pc.setLocalDescription(offer,
         function()
         {
-          console.log(offer);
+          nsss.call('offer', peerUID, offer.sdp, function(error)
+          {
+            if(error)
+              console.error(error);
+          });
         },
         onerror);
       },
-      onerror);
+      onerror,
+      sdpConstraints);
     });
   };
 
@@ -176,11 +182,8 @@ window.addEventListener('load', function(event)
         {
           console.log(answer);
 
-          pc.setLocalDescription(new RTCSessionDescription(
-          {
-            sdp: answer.sdp,
-            type: 'answer'
-          }),
+          // Set the peer local description
+          pc.setLocalDescription(answer,
           function()
           {
             callback(null, null, 'answer', answer.sdp, function(error)
@@ -194,7 +197,8 @@ window.addEventListener('load', function(event)
           },
           onerror);
         },
-        onerror);
+        onerror,
+        sdpConstraints);
       });
     },
 
@@ -209,6 +213,7 @@ window.addEventListener('load', function(event)
         function()
         {
           console.info("Received answer");
+          enableVideo(pc);
           callback();
         },
         function(error)
