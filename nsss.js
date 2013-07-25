@@ -5,6 +5,8 @@
  */
 function NSSS(socket, uid, room, methods)
 {
+  socket.jsonrpc = "2.1";
+
   if(typeof room == 'object')
   {
     methods = room;
@@ -145,8 +147,8 @@ function NSSS(socket, uid, room, methods)
     var request =
     {
       jsonrpc: socket.jsonrpc,
-      method:  'register',
-      to:      uid
+      method:  'rpc.register',
+      params:  [uid]
     };
     send(request);
 
