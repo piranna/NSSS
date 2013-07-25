@@ -7,15 +7,6 @@ window.addEventListener('load', function(event)
   var nsss = null;
   var localStream = null;
 
-  var sdpConstraints =
-  {
-    'mandatory':
-    {
-      'OfferToReceiveAudio': true,
-      'OfferToReceiveVideo': true
-    }
-  };
-
   function addToChat(msg, color)
   {
     // Sanitize the input
@@ -130,8 +121,7 @@ window.addEventListener('load', function(event)
         },
         onerror);
       },
-      onerror,
-      sdpConstraints);
+      onerror);
     });
   };
 
@@ -197,8 +187,7 @@ window.addEventListener('load', function(event)
           },
           onerror);
         },
-        onerror,
-        sdpConstraints);
+        onerror);
       });
     },
 
